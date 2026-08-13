@@ -1,17 +1,18 @@
 {
   "name": "bandwidth-checker",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Records and displays internet bandwidth",
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.16.4",
-    "lowdb": "^1.0.0"
+    "express": "^5.2.1",
+    "lowdb": "^7.0.1"
   },
   "engines": {
-    "node": "8.x"
+    "node": "24.x"
   },
   "repository": {
     "url": "https://github.com/healeycodes/bandwidth-checker"

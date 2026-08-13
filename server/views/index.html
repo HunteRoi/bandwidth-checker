@@ -14,11 +14,24 @@
               ⚡ Bandwidth Checker ⚡
               - Here's the last day of results of my download bandwidth speed tests.
               - Ran via cron on my Raspberry Pi via speedtest-cli.
-              
-              Open-sourced @ <a href="https://github.com/healeycodes/bandwidth-checker">https://github.com/healeycodes/bandwidth-checker</a>
+
+              Open-sourced @ <a href="https://github.com/hunteroi/bandwidth-checker">https://github.com/hunteroi/bandwidth-checker</a>
               - Optionally included: a headless browser test via Netflix's fast.com.
           </pre>
         <canvas id="myChart" width="400" height="400"></canvas>
+
+        <pre style="margin-top: 40px;">⚡ WiFi Outage Log ⚡</pre>
+        <table id="outage-table" style="font-family: monospace; border-collapse: collapse; width: 800px;">
+            <thead>
+                <tr>
+                    <th style="text-align:left; border-bottom: 1px solid #ccc; padding: 4px 12px;">Lost at</th>
+                    <th style="text-align:left; border-bottom: 1px solid #ccc; padding: 4px 12px;">Restored at</th>
+                    <th style="text-align:left; border-bottom: 1px solid #ccc; padding: 4px 12px;">Duration</th>
+                </tr>
+            </thead>
+            <tbody id="outage-body"></tbody>
+        </table>
+
         <script>
             fetch('/read')
               .then(response => response.json())
@@ -77,6 +90,27 @@
                 }
               });
             }
+        </script>
+        <script>
+            fetch('/outages')
+                .then(r => r.json())
+                .then(outages => {
+                    const tbody = document.getElementById('outage-body');
+                    if (outages.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="3" style="padding:4px 12px;color:#999">No outages recorded yet.</td></tr>';
+                        return;
+                    }
+                    outages.slice().reverse().forEach(o => {
+                        const lost = new Date(o.lost_at).toUTCString();
+                        const restored = o.restored_at ? new Date(o.restored_at).toUTCString() : '—';
+                        const duration = o.restored_at
+                            ? Math.round((o.restored_at - o.lost_at) / 1000) + 's'
+                            : 'ongoing';
+                        const row = document.createElement('tr');
+                        row.innerHTML = `<td style="padding:4px 12px">${lost}</td><td style="padding:4px 12px">${restored}</td><td style="padding:4px 12px">${duration}</td>`;
+                        tbody.appendChild(row);
+                    });
+                });
         </script>
     </body>
 </html>
