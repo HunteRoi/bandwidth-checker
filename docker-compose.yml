@@ -1,6 +1,7 @@
 services:
   server:
     build: ./server
+    restart: unless-stopped
     ports:
       - "${PORT:-3000}:3000"
     environment:
@@ -9,11 +10,19 @@ services:
       DB_PATH: /app/config/db.json
     volumes:
       - ${CONFIG_DIR:-./config}:/app/config
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   client:
     build: ./client
+    restart: unless-stopped
     depends_on:
-      - server
+      server:
+        condition: service_healthy
     environment:
       SERVER_URL: "http://server:3000/save"
       SECRET: ${SECRET}
@@ -21,15 +30,16 @@ services:
 
   connectivity:
     build: ./client
+    restart: unless-stopped
     depends_on:
-      - server
-    network_mode: host  # must see the host's WiFi interface via netlink
-    cap_add:
-      - NET_ADMIN
+      server:
+        condition: service_healthy
+    network_mode: host  # shares host network namespace so /sys/class/net shows host interfaces
     environment:
       WIFI_IFACE: ${WIFI_IFACE:-wlan0}
+      POLL_MS: ${POLL_MS:-200}
       LOG_DIR: /app/config
-      # server is reachable on localhost because the server port is exposed to the host
+      # server reachable on localhost because its port is published to the host
       SERVER_URL: "http://localhost:${PORT:-3000}"
       SECRET: ${SECRET}
     volumes:
