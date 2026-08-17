@@ -33,18 +33,24 @@
             }
             .page {
                 width: 100%;
-                max-width: 900px;
+                max-width: 1200px;
                 padding: 48px 20px 80px;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
+                display: grid;
+                grid-template-columns: 1fr;
+                align-items: start;
                 gap: 32px;
             }
             .brand {
+                grid-column: 1 / -1;
                 font-size: 28px;
                 font-weight: 700;
                 letter-spacing: 0.5px;
                 text-align: center;
+            }
+            @media (min-width: 900px) {
+                .page {
+                    grid-template-columns: 1fr 1fr;
+                }
             }
             .card {
                 width: 100%;
@@ -139,13 +145,13 @@
             <div class="brand">⚡ Bandwidth Checker</div>
 
             <section class="card">
-                <h2>Bandwidth</h2>
+                <h2>Bandwidth Test Results</h2>
                 <div id="chart-stats"></div>
                 <canvas id="myChart" width="400" height="400"></canvas>
             </section>
 
             <section class="card" id="outage-calendar">
-                <h2>WiFi Outages</h2>
+                <h2>WiFi Outage Calendar</h2>
                 <div class="calendar-nav">
                     <button id="previous-month" type="button">&lt; Previous</button>
                     <strong id="calendar-month"></strong>
