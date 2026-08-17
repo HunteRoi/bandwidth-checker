@@ -5,6 +5,14 @@ import express from "express";
 const db = new LowSync(new JSONFileSync(process.env.DB_PATH || "db.json"), { results: [], outages: [] });
 db.read();
 
+// purge malformed outage records left over from a schema mismatch bug
+const validOutages = db.data.outages.filter(o => o && (o.event === "lost" || o.event === "restored") && o.timestamp);
+if (validOutages.length !== db.data.outages.length) {
+  console.warn(`Removed ${db.data.outages.length - validOutages.length} malformed outage record(s) from the database`);
+  db.data.outages = validOutages;
+  db.write();
+}
+
 const secret = process.env.SECRET;
 if (secret === undefined) console.warn("The secret has not been defined!");
 
@@ -46,6 +54,12 @@ app.post("/save", function(request, response) {
 app.post("/outage", function(request, response) {
   if (request.body.pw !== secret) {
     return response.status(400).send("Bad pw");
+  }
+  if (request.body.event !== "lost" && request.body.event !== "restored") {
+    return response.status(400).send("Bad event");
+  }
+  if (!request.body.timestamp) {
+    return response.status(400).send("Missing timestamp");
   }
   db.data.outages.push({
     event: request.body.event,
