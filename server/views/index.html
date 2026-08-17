@@ -49,7 +49,7 @@
             }
             @media (min-width: 900px) {
                 .page {
-                    grid-template-columns: 1fr 1fr;
+                    grid-template-columns: 3fr 2fr;
                 }
             }
             .card {
@@ -74,6 +74,14 @@
                 color: var(--text-dim);
             }
             #chart-stats span { color: var(--text-main); font-weight: 600; }
+            .chart-wrap {
+                position: relative;
+                width: 100%;
+                height: 340px;
+            }
+            @media (min-width: 900px) {
+                .chart-wrap { height: 520px; }
+            }
             .calendar-nav {
                 display: flex;
                 align-items: center;
@@ -147,7 +155,9 @@
             <section class="card">
                 <h2>Bandwidth Test Results</h2>
                 <div id="chart-stats"></div>
-                <canvas id="myChart" width="400" height="400"></canvas>
+                <div class="chart-wrap">
+                    <canvas id="myChart"></canvas>
+                </div>
             </section>
 
             <section class="card" id="outage-calendar">
@@ -232,6 +242,8 @@
                   ]
                 },
                 options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
                   scales: {
                     xAxes: [{
                       type: 'linear',
