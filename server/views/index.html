@@ -153,6 +153,72 @@
                 color: #ffe388;
             }
             #calendar-empty { color: var(--text-dim); font-size: 13px; }
+            .calendar-legend {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 16px;
+                margin-bottom: 14px;
+                font-size: 12px;
+                color: var(--text-dim);
+            }
+            .legend-item { display: flex; align-items: center; gap: 6px; }
+            .legend-swatch {
+                width: 12px;
+                height: 12px;
+                border-radius: 4px;
+                display: inline-block;
+                border: 1px solid transparent;
+            }
+            .legend-swatch.ongoing {
+                background: rgba(251, 90, 140, 0.18);
+                border-color: rgba(251, 90, 140, 0.6);
+            }
+            .legend-swatch.resolved {
+                background: rgba(250, 204, 21, 0.14);
+                border-color: rgba(250, 204, 21, 0.5);
+            }
+            .range-controls {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 12px;
+                font-size: 13px;
+                color: var(--text-dim);
+            }
+            .range-controls label {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+            .range-controls input[type="datetime-local"] {
+                background: rgba(255, 255, 255, 0.04);
+                border: 1px solid var(--card-border);
+                border-radius: 8px;
+                padding: 6px 8px;
+                color: var(--text-main);
+                font-size: 13px;
+                font-family: inherit;
+                color-scheme: dark;
+            }
+            .range-controls button {
+                background: rgba(56, 189, 248, 0.12);
+                color: var(--accent);
+                border: 1px solid rgba(56, 189, 248, 0.4);
+                border-radius: 8px;
+                padding: 7px 14px;
+                font-size: 13px;
+                cursor: pointer;
+                align-self: flex-end;
+                transition: background 0.15s ease;
+            }
+            .range-controls button:hover { background: rgba(56, 189, 248, 0.25); }
+            #range-hint {
+                width: 100%;
+                font-size: 11.5px;
+                color: var(--text-dim);
+                opacity: 0.8;
+            }
         </style>
     </head>
     <body>
@@ -161,6 +227,16 @@
 
             <section class="card">
                 <h2>Bandwidth Test Results</h2>
+                <div class="range-controls">
+                    <label>From
+                        <input type="datetime-local" id="range-start">
+                    </label>
+                    <label>To
+                        <input type="datetime-local" id="range-end">
+                    </label>
+                    <button id="range-reset" type="button">Reset zoom</button>
+                    <span id="range-hint">Scroll on the graph to zoom around the cursor</span>
+                </div>
                 <div id="chart-stats"></div>
                 <div class="chart-wrap">
                     <canvas id="myChart"></canvas>
@@ -173,6 +249,10 @@
                     <button id="previous-month" type="button">&lt; Previous</button>
                     <strong id="calendar-month"></strong>
                     <button id="next-month" type="button">Next &gt;</button>
+                </div>
+                <div class="calendar-legend">
+                    <span class="legend-item"><span class="legend-swatch ongoing"></span> Ongoing outage</span>
+                    <span class="legend-item"><span class="legend-swatch resolved"></span> Resolved outage</span>
                 </div>
                 <div id="calendar-weekdays">
                     <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
@@ -219,14 +299,15 @@
             };
 
             const renderGraph = (speedData) => {
-              const values = speedData.map(d => Number(d.y));
-              const xs = speedData.map(d => Number(d.x));
+              const points = speedData.map(d => ({ x: Number(d.x), y: Number(d.y) }));
+              const values = points.map(p => p.y);
+              const xs = points.map(p => p.x);
               const stats = computeStats(values);
               const isOutlier = v => v < stats.lowerBound || v > stats.upperBound;
-              const pointColors = values.map(v => isOutlier(v) ? 'rgba(251, 90, 140, 0.9)' : 'rgba(56, 189, 248, 0.85)');
-              const pointBorders = values.map(v => isOutlier(v) ? 'rgba(251, 90, 140, 1)' : 'rgba(56, 189, 248, 1)');
+              const normalPoints = points.filter(p => !isOutlier(p.y));
+              const outlierPoints = points.filter(p => isOutlier(p.y));
 
-              const outlierCount = values.filter(isOutlier).length;
+              const outlierCount = outlierPoints.length;
               document.getElementById('chart-stats').innerHTML =
                 `Median: <span>${stats.median.toFixed(2)} Mbps</span> &nbsp;·&nbsp; ` +
                 `Outliers: <span>${outlierCount}</span> of <span>${values.length}</span> points ` +
@@ -241,11 +322,20 @@
                 data: {
                   datasets: [
                     {
-                      label: 'Speed',
-                      data: speedData,
+                      label: 'Normal speed',
+                      data: normalPoints,
                       showLine: false,
-                      backgroundColor: pointColors,
-                      borderColor: pointBorders,
+                      backgroundColor: 'rgba(56, 189, 248, 0.85)',
+                      borderColor: 'rgba(56, 189, 248, 1)',
+                      borderWidth: 1,
+                      pointRadius: 4,
+                    },
+                    {
+                      label: `Outliers (beyond ${Math.max(0, stats.lowerBound).toFixed(1)}–${stats.upperBound.toFixed(1)} Mbps)`,
+                      data: outlierPoints,
+                      showLine: false,
+                      backgroundColor: 'rgba(251, 90, 140, 0.9)',
+                      borderColor: 'rgba(251, 90, 140, 1)',
                       borderWidth: 1,
                       pointRadius: 4,
                     },
