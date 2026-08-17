@@ -137,7 +137,22 @@
                 duration: null
               });
             }
-            return rows;
+
+            // merge outages separated by a short gap — usually carrier flicker during
+            // WiFi reassociation/DHCP renew rather than two genuinely separate outages
+            const MERGE_GAP_MS = 60000;
+            const merged = [];
+            rows.forEach(row => {
+              const previous = merged[merged.length - 1];
+              if (previous && previous.end && (row.start - previous.end) <= MERGE_GAP_MS) {
+                previous.end = row.end;
+                previous.restored = row.restored;
+                previous.duration = previous.end ? (previous.end - previous.start) / 1000 : null;
+              } else {
+                merged.push({ ...row });
+              }
+            });
+            return merged;
           };
 
           const renderCalendar = () => {
