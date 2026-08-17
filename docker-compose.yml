@@ -38,6 +38,7 @@ services:
     environment:
       WIFI_IFACE: ${WIFI_IFACE:-wlan0}
       POLL_MS: ${POLL_MS:-200}
+      DEBOUNCE_MS: ${DEBOUNCE_MS:-3000}
       LOG_DIR: /app/config
       # server reachable on localhost because its port is published to the host
       SERVER_URL: "http://localhost:${PORT:-3000}"

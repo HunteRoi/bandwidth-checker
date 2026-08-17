@@ -12,6 +12,8 @@ SERVER_URL = os.getenv("SERVER_URL", "")
 SECRET = os.getenv("SECRET", "")
 # poll interval in ms — 200 ms gives <200 ms detection latency with negligible CPU
 POLL_MS = int(os.getenv("POLL_MS", "200"))
+# a state change must hold for this long before it's treated as real (filters reassociation flaps)
+DEBOUNCE_MS = int(os.getenv("DEBOUNCE_MS", "3000"))
 
 _CARRIER = Path(f"/sys/class/net/{WIFI_IFACE}/carrier")
 _ADDRESS = Path(f"/sys/class/net/{WIFI_IFACE}/address")
@@ -73,6 +75,8 @@ if __name__ == "__main__":
 
     connected = is_up()
     outage_start: datetime | None = None if connected else datetime.now(timezone.utc)
+    pending_state: bool | None = None
+    pending_since: float | None = None
 
     print(
         f"[{datetime.now().isoformat()}] Watching '{WIFI_IFACE}' "
@@ -85,7 +89,20 @@ if __name__ == "__main__":
         now_up = is_up()
 
         if now_up == connected:
+            pending_state = None
+            pending_since = None
             continue
+
+        # debounce: require the new state to hold steady before committing it
+        now = time.monotonic()
+        if pending_state != now_up:
+            pending_state = now_up
+            pending_since = now
+            continue
+        if (now - pending_since) * 1000 < DEBOUNCE_MS:
+            continue
+        pending_state = None
+        pending_since = None
 
         ts = datetime.now(timezone.utc)
         record: dict = {

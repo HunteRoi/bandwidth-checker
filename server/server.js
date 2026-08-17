@@ -42,14 +42,19 @@ app.post("/save", function(request, response) {
   response.send("OK");
 });
 
-// log a completed WiFi outage (lost + restored timestamps in ms)
+// log a WiFi connectivity event (lost or restored) from the connectivity monitor
 app.post("/outage", function(request, response) {
   if (request.body.pw !== secret) {
     return response.status(400).send("Bad pw");
   }
   db.data.outages.push({
-    lost_at: request.body.lost_at,
-    restored_at: request.body.restored_at
+    event: request.body.event,
+    timestamp: request.body.timestamp,
+    interface: request.body.interface,
+    hostname: request.body.hostname,
+    mac: request.body.mac,
+    ip: request.body.ip,
+    duration_s: request.body.duration_s
   });
   db.write();
   response.send("OK");
