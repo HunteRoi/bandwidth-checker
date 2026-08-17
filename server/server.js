@@ -31,8 +31,7 @@ app.get("/", function(request, response) {
 app.get("/read", function(request, response) {
   const data = db.data.results;
   const prepared = data.map(s => ({ x: s.date, y: Number(s.speed).toFixed(3) }));
-  const trimmed = prepared.slice(Math.max(prepared.length - 48, 0));
-  response.send(trimmed);
+  response.send(prepared);
 });
 
 // send bandwidth test results here
