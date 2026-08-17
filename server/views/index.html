@@ -263,9 +263,6 @@
         </div>
 
         <script>
-            fetch('/read')
-              .then(response => response.json())
-              .then(json => renderGraph(json));
             const safeDate = time => new Date(parseInt(time)).toUTCString();
 
             const quantile = (sorted, q) => {
@@ -298,32 +295,40 @@
               };
             };
 
-            const renderGraph = (speedData) => {
-              const points = speedData.map(d => ({ x: Number(d.x), y: Number(d.y) }));
-              const values = points.map(p => p.y);
-              const xs = points.map(p => p.x);
-              const stats = computeStats(values);
-              const isOutlier = v => v < stats.lowerBound || v > stats.upperBound;
-              const normalPoints = points.filter(p => !isOutlier(p.y));
-              const outlierPoints = points.filter(p => isOutlier(p.y));
+            // Minimum visible span so wheel-zoom / manual input can't collapse the range to nothing
+            const MIN_RANGE_MS = 60 * 1000;
 
-              const outlierCount = outlierPoints.length;
-              document.getElementById('chart-stats').innerHTML =
-                `Median: <span>${stats.median.toFixed(2)} Mbps</span> &nbsp;·&nbsp; ` +
-                `Outliers: <span>${outlierCount}</span> of <span>${values.length}</span> points ` +
-                `(outside <span>${Math.max(0, stats.lowerBound).toFixed(1)}</span>–<span>${stats.upperBound.toFixed(1)}</span> Mbps)`;
+            let fullPoints = [];
+            let dataMin = 0;
+            let dataMax = 0;
+            let currentMin = 0;
+            let currentMax = 0;
+            let chartInstance = null;
 
-              const minX = Math.min(...xs);
-              const maxX = Math.max(...xs);
+            const rangeStartInput = document.getElementById('range-start');
+            const rangeEndInput = document.getElementById('range-end');
+            const rangeResetButton = document.getElementById('range-reset');
 
-              var ctx = document.getElementById('myChart').getContext('2d');
-              var myChart = new Chart(ctx, {
+            const toInputValue = ms => {
+              const d = new Date(ms);
+              const pad = n => String(n).padStart(2, '0');
+              return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            };
+
+            const fromInputValue = value => {
+              const ms = new Date(value).getTime();
+              return Number.isNaN(ms) ? null : ms;
+            };
+
+            const buildChart = () => {
+              const ctx = document.getElementById('myChart').getContext('2d');
+              chartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
                   datasets: [
                     {
                       label: 'Normal speed',
-                      data: normalPoints,
+                      data: [],
                       showLine: false,
                       backgroundColor: 'rgba(56, 189, 248, 0.85)',
                       borderColor: 'rgba(56, 189, 248, 1)',
@@ -331,8 +336,8 @@
                       pointRadius: 4,
                     },
                     {
-                      label: `Outliers (beyond ${Math.max(0, stats.lowerBound).toFixed(1)}–${stats.upperBound.toFixed(1)} Mbps)`,
-                      data: outlierPoints,
+                      label: 'Outliers',
+                      data: [],
                       showLine: false,
                       backgroundColor: 'rgba(251, 90, 140, 0.9)',
                       borderColor: 'rgba(251, 90, 140, 1)',
@@ -340,8 +345,8 @@
                       pointRadius: 4,
                     },
                     {
-                      label: `Median (${stats.median.toFixed(2)} Mbps)`,
-                      data: [{ x: minX, y: stats.median }, { x: maxX, y: stats.median }],
+                      label: 'Median',
+                      data: [],
                       showLine: true,
                       borderColor: 'rgba(250, 204, 21, 0.9)',
                       borderWidth: 2,
@@ -395,7 +400,106 @@
                   }
                 }
               });
-            }
+
+              document.getElementById('myChart').addEventListener('wheel', onWheelZoom, { passive: false });
+            };
+
+            const updateChartForRange = (min, max) => {
+              const statsEl = document.getElementById('chart-stats');
+              const visible = fullPoints.filter(p => p.x >= min && p.x <= max);
+
+              chartInstance.options.scales.xAxes[0].ticks.min = min;
+              chartInstance.options.scales.xAxes[0].ticks.max = max;
+
+              if (!visible.length) {
+                chartInstance.data.datasets[0].data = [];
+                chartInstance.data.datasets[1].data = [];
+                chartInstance.data.datasets[2].data = [];
+                chartInstance.update();
+                statsEl.textContent = 'No data in the selected range.';
+                return;
+              }
+
+              const values = visible.map(p => p.y);
+              const stats = computeStats(values);
+              const isOutlier = v => v < stats.lowerBound || v > stats.upperBound;
+              const normalPoints = visible.filter(p => !isOutlier(p.y));
+              const outlierPoints = visible.filter(p => isOutlier(p.y));
+
+              statsEl.innerHTML =
+                `Median: <span>${stats.median.toFixed(2)} Mbps</span> &nbsp;·&nbsp; ` +
+                `Outliers: <span>${outlierPoints.length}</span> of <span>${values.length}</span> points ` +
+                `(outside <span>${Math.max(0, stats.lowerBound).toFixed(1)}</span>–<span>${stats.upperBound.toFixed(1)}</span> Mbps)`;
+
+              chartInstance.data.datasets[0].data = normalPoints;
+              chartInstance.data.datasets[1].data = outlierPoints;
+              chartInstance.data.datasets[1].label =
+                `Outliers (beyond ${Math.max(0, stats.lowerBound).toFixed(1)}–${stats.upperBound.toFixed(1)} Mbps)`;
+              chartInstance.data.datasets[2].data = [{ x: min, y: stats.median }, { x: max, y: stats.median }];
+              chartInstance.data.datasets[2].label = `Median (${stats.median.toFixed(2)} Mbps)`;
+              chartInstance.update();
+            };
+
+            const setRange = (min, max) => {
+              min = Math.max(dataMin, Math.min(min, dataMax));
+              max = Math.max(dataMin, Math.min(max, dataMax));
+              if (min > max) { const tmp = min; min = max; max = tmp; }
+              if (max - min < MIN_RANGE_MS) {
+                const mid = (min + max) / 2;
+                min = Math.max(dataMin, mid - MIN_RANGE_MS / 2);
+                max = Math.min(dataMax, min + MIN_RANGE_MS);
+              }
+              currentMin = min;
+              currentMax = max;
+              rangeStartInput.value = toInputValue(min);
+              rangeEndInput.value = toInputValue(max);
+              updateChartForRange(min, max);
+            };
+
+            const onWheelZoom = evt => {
+              if (!chartInstance) return;
+              evt.preventDefault();
+              const xScaleId = Object.keys(chartInstance.scales).find(id => chartInstance.scales[id].isHorizontal());
+              const xScale = chartInstance.scales[xScaleId];
+              if (!xScale) return;
+              const rect = evt.currentTarget.getBoundingClientRect();
+              const cursorValue = xScale.getValueForPixel(evt.clientX - rect.left);
+              const width = currentMax - currentMin;
+              const factor = evt.deltaY < 0 ? 0.8 : 1.25; // deltaY < 0 => scroll up => zoom in
+              const fullWidth = dataMax - dataMin;
+              const newWidth = Math.min(fullWidth, Math.max(MIN_RANGE_MS, width * factor));
+              const ratio = width === 0 ? 0.5 : (cursorValue - currentMin) / width;
+              let newMin = cursorValue - newWidth * ratio;
+              let newMax = cursorValue + newWidth * (1 - ratio);
+              if (newMin < dataMin) { newMax += dataMin - newMin; newMin = dataMin; }
+              if (newMax > dataMax) { newMin -= newMax - dataMax; newMax = dataMax; }
+              setRange(newMin, newMax);
+            };
+
+            rangeStartInput.addEventListener('change', () => {
+              const min = fromInputValue(rangeStartInput.value);
+              if (min !== null) setRange(min, currentMax);
+            });
+            rangeEndInput.addEventListener('change', () => {
+              const max = fromInputValue(rangeEndInput.value);
+              if (max !== null) setRange(currentMin, max);
+            });
+            rangeResetButton.addEventListener('click', () => setRange(dataMin, dataMax));
+
+            const initGraph = speedData => {
+              fullPoints = speedData
+                .map(d => ({ x: Number(d.x), y: Number(d.y) }))
+                .sort((a, b) => a.x - b.x);
+              if (!fullPoints.length) return;
+              dataMin = fullPoints[0].x;
+              dataMax = fullPoints[fullPoints.length - 1].x;
+              buildChart();
+              setRange(dataMin, dataMax);
+            };
+
+            fetch('/read')
+              .then(response => response.json())
+              .then(json => initGraph(json));
         </script>
         <script>
           const calendarGrid = document.getElementById('calendar-grid');
