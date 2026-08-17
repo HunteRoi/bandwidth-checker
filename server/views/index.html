@@ -89,6 +89,8 @@
             @media (min-width: 900px) {
                 .chart-wrap { height: 520px; }
             }
+            #myChart { cursor: grab; }
+            #myChart.panning { cursor: grabbing; }
             .calendar-nav {
                 display: flex;
                 align-items: center;
@@ -235,7 +237,7 @@
                         <input type="datetime-local" id="range-end">
                     </label>
                     <button id="range-reset" type="button">Reset zoom</button>
-                    <span id="range-hint">Scroll on the graph to zoom around the cursor</span>
+                    <span id="range-hint">Scroll to zoom around the cursor, drag to pan</span>
                 </div>
                 <div id="chart-stats"></div>
                 <div class="chart-wrap">
@@ -306,6 +308,13 @@
             let chartInstance = null;
             // computed once from the whole dataset so zooming never shifts the median/outlier classification
             let globalStats = null;
+
+            // drag-to-pan state
+            let isPanning = false;
+            let panStartClientX = 0;
+            let panStartMin = 0;
+            let panStartMax = 0;
+            let panPixelsPerMs = 0;
 
             const rangeStartInput = document.getElementById('range-start');
             const rangeEndInput = document.getElementById('range-end');
@@ -403,7 +412,12 @@
                 }
               });
 
-              document.getElementById('myChart').addEventListener('wheel', onWheelZoom, { passive: false });
+              const canvas = document.getElementById('myChart');
+              canvas.addEventListener('wheel', onWheelZoom, { passive: false });
+              canvas.addEventListener('mousedown', onPanStart);
+              window.addEventListener('mousemove', onPanMove);
+              window.addEventListener('mouseup', onPanEnd);
+              window.addEventListener('blur', onPanEnd);
             };
 
             const updateChartForRange = (min, max) => {
@@ -475,6 +489,41 @@
               if (newMin < dataMin) { newMax += dataMin - newMin; newMin = dataMin; }
               if (newMax > dataMax) { newMin -= newMax - dataMax; newMax = dataMax; }
               setRange(newMin, newMax);
+            };
+
+            const onPanStart = evt => {
+              if (evt.button !== 0 || !chartInstance) return;
+              const xScaleId = Object.keys(chartInstance.scales).find(id => chartInstance.scales[id].isHorizontal());
+              const xScale = chartInstance.scales[xScaleId];
+              if (!xScale || currentMax === currentMin) return;
+              const pxMin = xScale.getPixelForValue(currentMin);
+              const pxMax = xScale.getPixelForValue(currentMax);
+              if (pxMax === pxMin) return;
+              isPanning = true;
+              panStartClientX = evt.clientX;
+              panStartMin = currentMin;
+              panStartMax = currentMax;
+              panPixelsPerMs = (pxMax - pxMin) / (currentMax - currentMin);
+              evt.currentTarget.classList.add('panning');
+              evt.preventDefault();
+            };
+
+            const onPanMove = evt => {
+              if (!isPanning) return;
+              evt.preventDefault();
+              const deltaValue = (evt.clientX - panStartClientX) / panPixelsPerMs;
+              // dragging follows the cursor: moving right reveals earlier points, so subtract the delta
+              let newMin = panStartMin - deltaValue;
+              let newMax = panStartMax - deltaValue;
+              if (newMin < dataMin) { newMax += dataMin - newMin; newMin = dataMin; }
+              if (newMax > dataMax) { newMin -= newMax - dataMax; newMax = dataMax; }
+              setRange(newMin, newMax);
+            };
+
+            const onPanEnd = () => {
+              if (!isPanning) return;
+              isPanning = false;
+              document.getElementById('myChart').classList.remove('panning');
             };
 
             rangeStartInput.addEventListener('change', () => {
