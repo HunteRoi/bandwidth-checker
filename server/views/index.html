@@ -304,6 +304,8 @@
             let currentMin = 0;
             let currentMax = 0;
             let chartInstance = null;
+            // computed once from the whole dataset so zooming never shifts the median/outlier classification
+            let globalStats = null;
 
             const rangeStartInput = document.getElementById('range-start');
             const rangeEndInput = document.getElementById('range-end');
@@ -421,22 +423,21 @@
               }
 
               const values = visible.map(p => p.y);
-              const stats = computeStats(values);
-              const isOutlier = v => v < stats.lowerBound || v > stats.upperBound;
+              const isOutlier = v => v < globalStats.lowerBound || v > globalStats.upperBound;
               const normalPoints = visible.filter(p => !isOutlier(p.y));
               const outlierPoints = visible.filter(p => isOutlier(p.y));
 
               statsEl.innerHTML =
-                `Median: <span>${stats.median.toFixed(2)} Mbps</span> &nbsp;·&nbsp; ` +
-                `Outliers: <span>${outlierPoints.length}</span> of <span>${values.length}</span> points ` +
-                `(outside <span>${Math.max(0, stats.lowerBound).toFixed(1)}</span>–<span>${stats.upperBound.toFixed(1)}</span> Mbps)`;
+                `Median: <span>${globalStats.median.toFixed(2)} Mbps</span> &nbsp;·&nbsp; ` +
+                `Outliers: <span>${outlierPoints.length}</span> of <span>${values.length}</span> points in view ` +
+                `(outside <span>${Math.max(0, globalStats.lowerBound).toFixed(1)}</span>–<span>${globalStats.upperBound.toFixed(1)}</span> Mbps)`;
 
               chartInstance.data.datasets[0].data = normalPoints;
               chartInstance.data.datasets[1].data = outlierPoints;
               chartInstance.data.datasets[1].label =
-                `Outliers (beyond ${Math.max(0, stats.lowerBound).toFixed(1)}–${stats.upperBound.toFixed(1)} Mbps)`;
-              chartInstance.data.datasets[2].data = [{ x: min, y: stats.median }, { x: max, y: stats.median }];
-              chartInstance.data.datasets[2].label = `Median (${stats.median.toFixed(2)} Mbps)`;
+                `Outliers (beyond ${Math.max(0, globalStats.lowerBound).toFixed(1)}–${globalStats.upperBound.toFixed(1)} Mbps)`;
+              chartInstance.data.datasets[2].data = [{ x: min, y: globalStats.median }, { x: max, y: globalStats.median }];
+              chartInstance.data.datasets[2].label = `Median (${globalStats.median.toFixed(2)} Mbps)`;
               chartInstance.update();
             };
 
@@ -493,6 +494,7 @@
               if (!fullPoints.length) return;
               dataMin = fullPoints[0].x;
               dataMax = fullPoints[fullPoints.length - 1].x;
+              globalStats = computeStats(fullPoints.map(p => p.y));
               buildChart();
               setRange(dataMin, dataMax);
             };
