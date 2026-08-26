@@ -2,28 +2,10 @@ import { LowSync } from "lowdb";
 import { JSONFileSync } from "lowdb/node";
 import express from "express";
 
-const db = new LowSync(new JSONFileSync(process.env.DB_PATH || "db.json"), { results: {}, machines: {}, outages: [] });
+const db = new LowSync(new JSONFileSync(process.env.DB_PATH || "db.json"), { results: {}, machines: {} });
 db.read();
-
-// migrate legacy schema: results used to be a flat array with no machine attribution
-if (Array.isArray(db.data.results)) {
-  console.warn(`Migrating ${db.data.results.length} legacy result(s) into results.legacy`);
-  db.data.results = { legacy: db.data.results };
-}
 db.data.results = db.data.results || {};
 db.data.machines = db.data.machines || {};
-if (db.data.results.legacy && !db.data.machines.legacy) {
-  db.data.machines.legacy = { mac: "legacy", hostname: "Legacy / unspecified", ip: null, connection: null };
-}
-db.write();
-
-// purge malformed outage records left over from a schema mismatch bug
-const validOutages = db.data.outages.filter(o => o && (o.event === "lost" || o.event === "restored") && o.timestamp);
-if (validOutages.length !== db.data.outages.length) {
-  console.warn(`Removed ${db.data.outages.length - validOutages.length} malformed outage record(s) from the database`);
-  db.data.outages = validOutages;
-  db.write();
-}
 
 const secret = process.env.SECRET;
 if (secret === undefined) console.warn("The secret has not been defined!");
@@ -71,35 +53,6 @@ app.post("/save", function(request, response) {
   };
   db.write();
   response.send("OK");
-});
-
-
-// log a WiFi connectivity event (lost or restored) from the connectivity monitor
-app.post("/outage", function(request, response) {
-  if (request.body.pw !== secret) {
-    return response.status(400).send("Bad pw");
-  }
-  if (request.body.event !== "lost" && request.body.event !== "restored") {
-    return response.status(400).send("Bad event");
-  }
-  if (!request.body.timestamp) {
-    return response.status(400).send("Missing timestamp");
-  }
-  db.data.outages.push({
-    event: request.body.event,
-    timestamp: request.body.timestamp,
-    interface: request.body.interface,
-    hostname: request.body.hostname,
-    mac: request.body.mac,
-    ip: request.body.ip,
-    duration_s: request.body.duration_s
-  });
-  db.write();
-  response.send("OK");
-});
-
-app.get("/outages", function(request, response) {
-  response.send(db.data.outages);
 });
 
 // listen for requests :)

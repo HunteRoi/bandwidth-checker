@@ -1,5 +1,4 @@
 # Project
-chromedriver.*
 db.json
 server/node_modules
 .env

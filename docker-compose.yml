@@ -29,22 +29,3 @@ services:
       TEST_INTERVAL: ${TEST_INTERVAL:-3600}
       # labels this machine's readings in the dashboard, e.g. "wifi" or "ethernet"
       CONNECTION_LABEL: ${CONNECTION_LABEL:-wifi}
-
-  connectivity:
-    build: ./client
-    restart: unless-stopped
-    depends_on:
-      server:
-        condition: service_healthy
-    network_mode: host  # shares host network namespace so /sys/class/net shows host interfaces
-    environment:
-      WIFI_IFACE: ${WIFI_IFACE:-wlan0}
-      POLL_MS: ${POLL_MS:-200}
-      DEBOUNCE_MS: ${DEBOUNCE_MS:-3000}
-      LOG_DIR: /app/config
-      # server reachable on localhost because its port is published to the host
-      SERVER_URL: "http://localhost:${PORT:-3000}"
-      SECRET: ${SECRET}
-    volumes:
-      - ${CONFIG_DIR:-./config}:/app/config
-    command: ["python", "connectivity.py"]

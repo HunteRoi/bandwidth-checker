@@ -10,9 +10,7 @@
 
 Some ISPs promise money back if your bandwidth goes below a certain level.
 
-This project includes two automated methods of testing download speed.
-  - Speedtest's CLI.
-  - Headless Chromium browser via Netflix's fast.com.
+This project tests download speed via Speedtest's CLI.
 
 A Node server displays a scatter graph of the recent bandwidth results via Chart.js.
 
@@ -26,17 +24,7 @@ I run my own setup on a Raspberry Pi connected to my router via ethernet.
 
 `cd client`
 
-`pip install requests`
-
-and one of the following
-
-**Speedtest CLI**:
-
-`pip install speedtest-cli`
-
-**Headless browser**:
-
-`pip install selenium`
+`pip install requests speedtest-cli`
 
 ### Server
 
@@ -50,9 +38,7 @@ and one of the following
 
 ### Client
 
-Setup a cron job to run either version.
-
-**Speedtest CLI**:
+Setup a cron job to run it periodically:
 
 ```
 cd client
@@ -60,15 +46,6 @@ python clitest.py 'https://server-location/save' 'password'
 ```
 
 Where the arguments are:
-- Path to the endpoint to save the results.
-- Password for that endpoint.
-
-**Headless browser**:
-
-`python browsertest.py '/usr/lib/chromium-browser/chromedriver' 'https://server-location/save' 'password'`
-
-Where the arguments are:
-- Path to the ChromeDriver executable (watch out for version clashes).
 - Path to the endpoint to save the results.
 - Password for that endpoint.
 
