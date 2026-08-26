@@ -79,7 +79,7 @@ body {
 @media (min-width: 900px) {
     .chart-wrap { height: 520px; }
 }
-#myChart { cursor: grab; }
+#myChart { cursor: grab; touch-action: none; }
 #myChart.panning { cursor: grabbing; }
 .range-controls {
     display: flex;

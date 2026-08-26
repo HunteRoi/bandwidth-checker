@@ -120,6 +120,10 @@ const buildChart = () => {
   window.addEventListener('mousemove', onPanMove);
   window.addEventListener('mouseup', onPanEnd);
   window.addEventListener('blur', onPanEnd);
+  canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+  canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+  canvas.addEventListener('touchend', onTouchEnd);
+  canvas.addEventListener('touchcancel', onTouchEnd);
 };
 
 const updateChartForRange = (min, max) => {
