@@ -221,6 +221,77 @@
                 color: var(--text-dim);
                 opacity: 0.8;
             }
+            #low-outliers-stats, #daily-stats {
+                margin: 4px 0 16px;
+                font-size: 13px;
+                color: var(--text-dim);
+            }
+            #low-outliers-stats span, #daily-stats span { color: var(--text-main); font-weight: 600; }
+            .table-wrap {
+                max-height: 420px;
+                overflow-y: auto;
+                border: 1px solid var(--card-border);
+                border-radius: 10px;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+            }
+            th, td {
+                text-align: left;
+                padding: 8px 12px;
+                border-bottom: 1px solid var(--card-border);
+                white-space: nowrap;
+            }
+            thead th {
+                position: sticky;
+                top: 0;
+                background: var(--card-bg);
+                color: var(--text-dim);
+                text-transform: uppercase;
+                font-size: 11px;
+                letter-spacing: 0.5px;
+                z-index: 1;
+            }
+            tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
+            td.speed-outlier { color: var(--outlier); font-weight: 600; }
+            .daily-controls {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 12px;
+                font-size: 13px;
+                color: var(--text-dim);
+            }
+            .daily-controls label {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+            .daily-controls input[type="date"] {
+                background: rgba(255, 255, 255, 0.04);
+                border: 1px solid var(--card-border);
+                border-radius: 8px;
+                padding: 6px 8px;
+                color: var(--text-main);
+                font-size: 13px;
+                font-family: inherit;
+                color-scheme: dark;
+            }
+            .daily-controls button {
+                background: rgba(56, 189, 248, 0.12);
+                color: var(--accent);
+                border: 1px solid rgba(56, 189, 248, 0.4);
+                border-radius: 8px;
+                padding: 7px 14px;
+                font-size: 13px;
+                cursor: pointer;
+                align-self: flex-end;
+                transition: background 0.15s ease;
+            }
+            .daily-controls button:hover { background: rgba(56, 189, 248, 0.25); }
         </style>
     </head>
     <body>
@@ -242,6 +313,34 @@
                 <div id="chart-stats"></div>
                 <div class="chart-wrap">
                     <canvas id="myChart"></canvas>
+                </div>
+            </section>
+
+            <section class="card" id="low-outliers">
+                <h2>Low-Speed Outliers</h2>
+                <div id="low-outliers-stats"></div>
+                <div class="table-wrap">
+                    <table id="low-outliers-table">
+                        <thead>
+                            <tr><th>Date</th><th>Time</th><th>Speed (Mbps)</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="card" id="daily-stability">
+                <h2>Daily Network Stability</h2>
+                <div class="daily-controls">
+                    <label>Day
+                        <input type="date" id="daily-date">
+                    </label>
+                    <button id="daily-prev" type="button">&lt; Prev day</button>
+                    <button id="daily-next" type="button">Next day &gt;</button>
+                </div>
+                <div id="daily-stats"></div>
+                <div class="chart-wrap">
+                    <canvas id="dailyChart"></canvas>
                 </div>
             </section>
 
@@ -546,11 +645,136 @@
               globalStats = computeStats(fullPoints.map(p => p.y));
               buildChart();
               setRange(dataMin, dataMax);
+              renderLowOutlierTable();
+              initDailyStabilityChart();
             };
 
             fetch('/read')
               .then(response => response.json())
               .then(json => initGraph(json));
+        </script>
+        <script>
+          const lowOutliersTableBody = document.querySelector('#low-outliers-table tbody');
+          const lowOutliersStats = document.getElementById('low-outliers-stats');
+
+          const renderLowOutlierTable = () => {
+            if (!globalStats) return;
+            const lowPoints = fullPoints
+              .filter(p => p.y <= globalStats.lowerBound)
+              .sort((a, b) => b.x - a.x);
+
+            lowOutliersStats.innerHTML =
+              `<span>${lowPoints.length}</span> reading(s) below <span>${Math.max(0, globalStats.lowerBound).toFixed(1)} Mbps</span> ` +
+              `(median: <span>${globalStats.median.toFixed(2)} Mbps</span>)`;
+
+            lowOutliersTableBody.innerHTML = lowPoints.length
+              ? lowPoints.map(p => {
+                  const d = new Date(p.x);
+                  return `<tr><td>${d.toLocaleDateString()}</td><td>${d.toLocaleTimeString()}</td>` +
+                    `<td class="speed-outlier">${p.y.toFixed(2)}</td></tr>`;
+                }).join('')
+              : '<tr><td colspan="3">No low-speed outliers recorded.</td></tr>';
+          };
+
+          const dailyDateInput = document.getElementById('daily-date');
+          const dailyStats = document.getElementById('daily-stats');
+          let dailyChartInstance = null;
+
+          const dayBounds = dateStr => {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            return {
+              start: new Date(y, m - 1, d, 0, 0, 0, 0).getTime(),
+              end: new Date(y, m - 1, d, 23, 59, 59, 999).getTime()
+            };
+          };
+
+          const toDateInputValue = ms => {
+            const d = new Date(ms);
+            const pad = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+          };
+
+          const buildDailyChart = () => {
+            const ctx = document.getElementById('dailyChart').getContext('2d');
+            dailyChartInstance = new Chart(ctx, {
+              type: 'line',
+              data: {
+                datasets: [{
+                  label: 'Speed',
+                  data: [],
+                  showLine: true,
+                  borderColor: 'rgba(56, 189, 248, 1)',
+                  backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                  pointBackgroundColor: 'rgba(56, 189, 248, 1)',
+                  borderWidth: 2,
+                  pointRadius: 3,
+                  lineTension: 0,
+                  fill: false
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                legend: { display: false },
+                scales: {
+                  xAxes: [{
+                    type: 'linear',
+                    position: 'bottom',
+                    ticks: {
+                      userCallback: label => new Date(label).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                      fontColor: '#9098c4'
+                    },
+                    gridLines: { color: 'rgba(255,255,255,0.06)' },
+                    scaleLabel: { display: true, labelString: 'Time', fontColor: '#9098c4' }
+                  }],
+                  yAxes: [{
+                    scaleLabel: { display: true, labelString: 'Mbps', fontColor: '#9098c4' },
+                    ticks: { beginAtZero: true, fontColor: '#9098c4' },
+                    gridLines: { color: 'rgba(255,255,255,0.06)' }
+                  }]
+                },
+                tooltips: {
+                  callbacks: {
+                    label: tooltipItem => `${tooltipItem.value} Mbps @ ${new Date(Number(tooltipItem.label)).toLocaleTimeString()}`
+                  }
+                }
+              }
+            });
+          };
+
+          const renderDailyChart = () => {
+            if (!dailyDateInput.value) return;
+            const { start, end } = dayBounds(dailyDateInput.value);
+            const dayPoints = fullPoints.filter(p => p.x >= start && p.x <= end).sort((a, b) => a.x - b.x);
+
+            dailyChartInstance.options.scales.xAxes[0].ticks.min = start;
+            dailyChartInstance.options.scales.xAxes[0].ticks.max = end;
+            dailyChartInstance.data.datasets[0].data = dayPoints;
+            dailyChartInstance.update();
+
+            const dayLabel = new Date(start).toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            dailyStats.innerHTML = dayPoints.length
+              ? `<span>${dayPoints.length}</span> reading(s) on <span>${dayLabel}</span>`
+              : `No readings on <span>${dayLabel}</span>`;
+          };
+
+          const shiftDailyDate = deltaDays => {
+            const { start } = dayBounds(dailyDateInput.value);
+            dailyDateInput.value = toDateInputValue(start + deltaDays * 24 * 60 * 60 * 1000);
+            renderDailyChart();
+          };
+
+          const initDailyStabilityChart = () => {
+            dailyDateInput.min = toDateInputValue(dataMin);
+            dailyDateInput.max = toDateInputValue(dataMax);
+            dailyDateInput.value = toDateInputValue(dataMax);
+            buildDailyChart();
+            renderDailyChart();
+          };
+
+          dailyDateInput.addEventListener('change', renderDailyChart);
+          document.getElementById('daily-prev').addEventListener('click', () => shiftDailyDate(-1));
+          document.getElementById('daily-next').addEventListener('click', () => shiftDailyDate(1));
         </script>
         <script>
           const calendarGrid = document.getElementById('calendar-grid');
@@ -675,4 +899,3 @@
         </script>
     </body>
 </html>
-
