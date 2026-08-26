@@ -57,6 +57,12 @@ for example one on Wi-Fi and another wired directly into the modem. The dashboar
 machine as its own series and lets you pick a machine when viewing the low-speed outlier table
 and the daily stability chart.
 
+When running the client via Docker (see `docker-compose.yml`), the container uses
+`network_mode: host` so the MAC/IP/hostname it reports are the host machine's, not the
+container's virtual ones. Set `HOST_IFACE` to the name of the host's real network interface
+(e.g. `eth0`, check with `ip link show`) so the MAC is read from that interface instead of
+being guessed — otherwise it may pick a container-internal interface like `docker0`.
+
 ### Server
 
 Setup password, and port (default: 3000):

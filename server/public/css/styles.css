@@ -8,6 +8,7 @@
     --accent: #38bdf8;
     --accent-2: #facc15;
     --outlier: #fb5a8c;
+    color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body {
@@ -181,6 +182,10 @@ td.speed-outlier { color: var(--outlier); font-weight: 600; }
     font-size: 13px;
     font-family: inherit;
     color-scheme: dark;
+}
+.daily-controls select option {
+    background-color: var(--card-bg);
+    color: var(--text-main);
 }
 .daily-controls button {
     background: rgba(56, 189, 248, 0.12);
