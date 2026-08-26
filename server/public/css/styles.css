@@ -1,0 +1,199 @@
+:root {
+    --bg-start: #0f1226;
+    --bg-end: #1b1f3b;
+    --card-bg: #191d3a;
+    --card-border: #2c3163;
+    --text-main: #e7e9f7;
+    --text-dim: #9098c4;
+    --accent: #38bdf8;
+    --accent-2: #facc15;
+    --outlier: #fb5a8c;
+}
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: radial-gradient(circle at top, var(--bg-end), var(--bg-start));
+    color: var(--text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+.page {
+    width: 100%;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 32px 24px 56px;
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 24px;
+}
+@media (min-width: 480px) {
+    .page {
+        padding: 48px 32px 80px;
+        gap: 32px;
+    }
+}
+.brand {
+    grid-column: 1 / -1;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-align: center;
+}
+@media (min-width: 900px) {
+    .page {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+.card {
+    width: 100%;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+}
+.card h2 {
+    margin: 0 0 4px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+#chart-stats {
+    margin: 4px 0 16px;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+#chart-stats span { color: var(--text-main); font-weight: 600; }
+#chart-stats div { margin-bottom: 2px; }
+.chart-wrap {
+    position: relative;
+    width: 100%;
+    height: 340px;
+}
+@media (min-width: 900px) {
+    .chart-wrap { height: 520px; }
+}
+#myChart { cursor: grab; }
+#myChart.panning { cursor: grabbing; }
+.range-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+.range-controls label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.range-controls input[type="datetime-local"] {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 6px 8px;
+    color: var(--text-main);
+    font-size: 13px;
+    font-family: inherit;
+    color-scheme: dark;
+}
+.range-controls button {
+    background: rgba(56, 189, 248, 0.12);
+    color: var(--accent);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    align-self: flex-end;
+    transition: background 0.15s ease;
+}
+.range-controls button:hover { background: rgba(56, 189, 248, 0.25); }
+#range-hint {
+    width: 100%;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    opacity: 0.8;
+}
+#low-outliers-stats, #daily-stats {
+    margin: 4px 0 16px;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+#low-outliers-stats span, #daily-stats span { color: var(--text-main); font-weight: 600; }
+.table-wrap {
+    max-height: 420px;
+    overflow-y: auto;
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--card-border);
+    white-space: nowrap;
+}
+thead th {
+    position: sticky;
+    top: 0;
+    background: var(--card-bg);
+    color: var(--text-dim);
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    z-index: 1;
+}
+tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
+td.speed-outlier { color: var(--outlier); font-weight: 600; }
+.daily-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+.daily-controls label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.daily-controls input[type="date"], .daily-controls select {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 6px 8px;
+    color: var(--text-main);
+    font-size: 13px;
+    font-family: inherit;
+    color-scheme: dark;
+}
+.daily-controls button {
+    background: rgba(56, 189, 248, 0.12);
+    color: var(--accent);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    align-self: flex-end;
+    transition: background 0.15s ease;
+}
+.daily-controls button:hover { background: rgba(56, 189, 248, 0.25); }
+#bandwidth-results {
+    grid-column: 1 / -1;
+}

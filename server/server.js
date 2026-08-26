@@ -10,6 +10,22 @@ db.data.machines = db.data.machines || {};
 const secret = process.env.SECRET;
 if (secret === undefined) console.warn("The secret has not been defined!");
 
+// frontend statistics/UI tunables, overridable via env vars without touching client code
+const numberEnv = (name, fallback) => {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) ? value : fallback;
+};
+const clientConfig = {
+  // modified z-score sensitivity: lower flags more points as outliers, higher flags fewer
+  outlierThreshold: numberEnv("OUTLIER_THRESHOLD", 1.5),
+  // consistency constant that scales MAD to be comparable to stddev under a normal distribution (Φ⁻¹(0.75))
+  madConsistencyConstant: numberEnv("MAD_CONSISTENCY_CONSTANT", 0.6745),
+  // minimum wheel-zoom / manual range span in milliseconds
+  minRangeMs: numberEnv("MIN_RANGE_MS", 60 * 1000),
+  // fixed cutoff for the low-speed outliers table, in Mbps
+  lowSpeedThresholdMbps: numberEnv("LOW_SPEED_THRESHOLD_MBPS", 10.0)
+};
+
 const app = express();
 app.use(express.json());
 
@@ -19,6 +35,11 @@ app.set("port", process.env.PORT || 3000);
 
 app.get("/", function(request, response) {
   response.sendFile(import.meta.dirname + "/views/index.html");
+});
+
+// frontend tunables (outlier detection, zoom, thresholds) so they can be changed via env vars
+app.get("/config", function(request, response) {
+  response.send(clientConfig);
 });
 
 // get bandwidth test results for graphing here, grouped by reporting machine

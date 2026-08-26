@@ -8,6 +8,10 @@ services:
       SECRET: ${SECRET}
       PORT: "3000"
       DB_PATH: /app/config/db.json
+      OUTLIER_THRESHOLD: ${OUTLIER_THRESHOLD:-1.5}
+      MAD_CONSISTENCY_CONSTANT: ${MAD_CONSISTENCY_CONSTANT:-0.6745}
+      MIN_RANGE_MS: ${MIN_RANGE_MS:-60000}
+      LOW_SPEED_THRESHOLD_MBPS: ${LOW_SPEED_THRESHOLD_MBPS:-10.0}
     volumes:
       - ${CONFIG_DIR:-./config}:/app/config
     healthcheck:
