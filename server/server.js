@@ -2,8 +2,20 @@ import { LowSync } from "lowdb";
 import { JSONFileSync } from "lowdb/node";
 import express from "express";
 
-const db = new LowSync(new JSONFileSync(process.env.DB_PATH || "db.json"), { results: [], outages: [] });
+const db = new LowSync(new JSONFileSync(process.env.DB_PATH || "db.json"), { results: {}, machines: {}, outages: [] });
 db.read();
+
+// migrate legacy schema: results used to be a flat array with no machine attribution
+if (Array.isArray(db.data.results)) {
+  console.warn(`Migrating ${db.data.results.length} legacy result(s) into results.legacy`);
+  db.data.results = { legacy: db.data.results };
+}
+db.data.results = db.data.results || {};
+db.data.machines = db.data.machines || {};
+if (db.data.results.legacy && !db.data.machines.legacy) {
+  db.data.machines.legacy = { mac: "legacy", hostname: "Legacy / unspecified", ip: null, connection: null };
+}
+db.write();
 
 // purge malformed outage records left over from a schema mismatch bug
 const validOutages = db.data.outages.filter(o => o && (o.event === "lost" || o.event === "restored") && o.timestamp);
@@ -27,11 +39,13 @@ app.get("/", function(request, response) {
   response.sendFile(import.meta.dirname + "/views/index.html");
 });
 
-// get bandwidth test results for graphing here
+// get bandwidth test results for graphing here, grouped by reporting machine
 app.get("/read", function(request, response) {
-  const data = db.data.results;
-  const prepared = data.map(s => ({ x: s.date, y: Number(s.speed).toFixed(3) }));
-  response.send(prepared);
+  const series = {};
+  for (const [machineKey, entries] of Object.entries(db.data.results)) {
+    series[machineKey] = entries.map(s => ({ x: s.date, y: Number(s.speed).toFixed(3) }));
+  }
+  response.send({ machines: db.data.machines, series });
 });
 
 // send bandwidth test results here
@@ -40,14 +54,25 @@ app.post("/save", function(request, response) {
   if (request.body.pw !== secret) {
     return response.status(400).send("Bad pw");
   }
-  db.data.results.push({
+  // machines are identified by MAC address (most stable across DHCP/IP changes),
+  // falling back to IP then hostname when a client can't report a MAC
+  const machineKey = request.body.mac || request.body.ip || request.body.hostname || "unknown";
+  if (!db.data.results[machineKey]) db.data.results[machineKey] = [];
+  db.data.results[machineKey].push({
     speed: request.body.speed,
     unit: request.body.units,
     date: request.body.date * 1000 // correct to JS time
   });
+  db.data.machines[machineKey] = {
+    mac: request.body.mac || null,
+    ip: request.body.ip || null,
+    hostname: request.body.hostname || null,
+    connection: request.body.connection || null
+  };
   db.write();
   response.send("OK");
 });
+
 
 // log a WiFi connectivity event (lost or restored) from the connectivity monitor
 app.post("/outage", function(request, response) {

@@ -27,6 +27,8 @@ services:
       SERVER_URL: "http://server:3000/save"
       SECRET: ${SECRET}
       TEST_INTERVAL: ${TEST_INTERVAL:-3600}
+      # labels this machine's readings in the dashboard, e.g. "wifi" or "ethernet"
+      CONNECTION_LABEL: ${CONNECTION_LABEL:-wifi}
 
   connectivity:
     build: ./client

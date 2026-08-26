@@ -270,7 +270,7 @@
                 flex-direction: column;
                 gap: 4px;
             }
-            .daily-controls input[type="date"] {
+            .daily-controls input[type="date"], .daily-controls select {
                 background: rgba(255, 255, 255, 0.04);
                 border: 1px solid var(--card-border);
                 border-radius: 8px;
@@ -318,6 +318,11 @@
 
             <section class="card" id="low-outliers">
                 <h2>Low-Speed Outliers</h2>
+                <div class="daily-controls">
+                    <label>Machine
+                        <select id="low-outliers-machine"></select>
+                    </label>
+                </div>
                 <div id="low-outliers-stats"></div>
                 <div class="table-wrap">
                     <table id="low-outliers-table">
@@ -332,6 +337,9 @@
             <section class="card" id="daily-stability">
                 <h2>Daily Network Stability</h2>
                 <div class="daily-controls">
+                    <label>Machine
+                        <select id="daily-machine"></select>
+                    </label>
                     <label>Day
                         <input type="date" id="daily-date">
                     </label>
@@ -399,14 +407,31 @@
             // Minimum visible span so wheel-zoom / manual input can't collapse the range to nothing
             const MIN_RANGE_MS = 60 * 1000;
 
-            let fullPoints = [];
+            // distinguishable colors so each reporting machine gets its own consistent series color
+            const PALETTE = [
+              { bg: 'rgba(56, 189, 248, 0.85)', border: 'rgba(56, 189, 248, 1)' },
+              { bg: 'rgba(251, 90, 140, 0.85)', border: 'rgba(251, 90, 140, 1)' },
+              { bg: 'rgba(250, 204, 21, 0.85)', border: 'rgba(250, 204, 21, 1)' },
+              { bg: 'rgba(52, 211, 153, 0.85)', border: 'rgba(52, 211, 153, 1)' },
+              { bg: 'rgba(167, 139, 250, 0.85)', border: 'rgba(167, 139, 250, 1)' }
+            ];
+
+            const machineLabel = meta => {
+              if (!meta) return 'Unknown';
+              const name = meta.hostname || meta.ip || meta.mac || 'Unknown';
+              return meta.connection ? `${name} (${meta.connection})` : name;
+            };
+
+            // keyed by machine identity (mac, falling back to ip/hostname) so each machine's
+            // readings and outlier stats stay independent — mixing e.g. ethernet and wifi speeds
+            // would make median/outlier detection meaningless
+            let machinesData = {};
+            let machineKeys = [];
             let dataMin = 0;
             let dataMax = 0;
             let currentMin = 0;
             let currentMax = 0;
             let chartInstance = null;
-            // computed once from the whole dataset so zooming never shifts the median/outlier classification
-            let globalStats = null;
 
             // drag-to-pan state
             let isPanning = false;
@@ -432,40 +457,22 @@
 
             const buildChart = () => {
               const ctx = document.getElementById('myChart').getContext('2d');
+              const datasets = machineKeys.map((key, i) => {
+                const colors = PALETTE[i % PALETTE.length];
+                return {
+                  label: machineLabel(machinesData[key].meta),
+                  data: [],
+                  showLine: false,
+                  backgroundColor: colors.bg,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  pointRadius: 4,
+                  machineKey: key
+                };
+              });
               chartInstance = new Chart(ctx, {
                 type: 'line',
-                data: {
-                  datasets: [
-                    {
-                      label: 'Normal speed',
-                      data: [],
-                      showLine: false,
-                      backgroundColor: 'rgba(56, 189, 248, 0.85)',
-                      borderColor: 'rgba(56, 189, 248, 1)',
-                      borderWidth: 1,
-                      pointRadius: 4,
-                    },
-                    {
-                      label: 'Outliers',
-                      data: [],
-                      showLine: false,
-                      backgroundColor: 'rgba(251, 90, 140, 0.9)',
-                      borderColor: 'rgba(251, 90, 140, 1)',
-                      borderWidth: 1,
-                      pointRadius: 4,
-                    },
-                    {
-                      label: 'Median',
-                      data: [],
-                      showLine: true,
-                      borderColor: 'rgba(250, 204, 21, 0.9)',
-                      borderWidth: 2,
-                      borderDash: [8, 5],
-                      pointRadius: 0,
-                      fill: false,
-                    }
-                  ]
-                },
+                data: { datasets },
                 options: {
                   responsive: true,
                   maintainAspectRatio: false,
@@ -504,7 +511,8 @@
                   tooltips: {
                     callbacks: {
                       label: function(tooltipItem, data) {
-                        return `${tooltipItem.value} Mbps @ ${safeDate(tooltipItem.label)}`;
+                        const machine = data.datasets[tooltipItem.datasetIndex].label;
+                        return `${machine}: ${tooltipItem.value} Mbps @ ${safeDate(tooltipItem.label)}`;
                       }
                     }
                   }
@@ -521,37 +529,21 @@
 
             const updateChartForRange = (min, max) => {
               const statsEl = document.getElementById('chart-stats');
-              const visible = fullPoints.filter(p => p.x >= min && p.x <= max);
 
               chartInstance.options.scales.xAxes[0].ticks.min = min;
               chartInstance.options.scales.xAxes[0].ticks.max = max;
 
-              if (!visible.length) {
-                chartInstance.data.datasets[0].data = [];
-                chartInstance.data.datasets[1].data = [];
-                chartInstance.data.datasets[2].data = [];
-                chartInstance.update();
-                statsEl.textContent = 'No data in the selected range.';
-                return;
-              }
-
-              const values = visible.map(p => p.y);
-              const isOutlier = v => v < globalStats.lowerBound || v > globalStats.upperBound;
-              const normalPoints = visible.filter(p => !isOutlier(p.y));
-              const outlierPoints = visible.filter(p => isOutlier(p.y));
-
-              statsEl.innerHTML =
-                `Median: <span>${globalStats.median.toFixed(2)} Mbps</span> &nbsp;·&nbsp; ` +
-                `Outliers: <span>${outlierPoints.length}</span> of <span>${values.length}</span> points in view ` +
-                `(outside <span>${Math.max(0, globalStats.lowerBound).toFixed(1)}</span>–<span>${globalStats.upperBound.toFixed(1)}</span> Mbps)`;
-
-              chartInstance.data.datasets[0].data = normalPoints;
-              chartInstance.data.datasets[1].data = outlierPoints;
-              chartInstance.data.datasets[1].label =
-                `Outliers (beyond ${Math.max(0, globalStats.lowerBound).toFixed(1)}–${globalStats.upperBound.toFixed(1)} Mbps)`;
-              chartInstance.data.datasets[2].data = [{ x: min, y: globalStats.median }, { x: max, y: globalStats.median }];
-              chartInstance.data.datasets[2].label = `Median (${globalStats.median.toFixed(2)} Mbps)`;
+              let totalVisible = 0;
+              chartInstance.data.datasets.forEach(ds => {
+                const visible = machinesData[ds.machineKey].points.filter(p => p.x >= min && p.x <= max);
+                ds.data = visible;
+                totalVisible += visible.length;
+              });
               chartInstance.update();
+
+              statsEl.textContent = totalVisible
+                ? `${totalVisible} reading(s) across ${machineKeys.length} machine(s) in view`
+                : 'No data in the selected range.';
             };
 
             const setRange = (min, max) => {
@@ -635,16 +627,30 @@
             });
             rangeResetButton.addEventListener('click', () => setRange(dataMin, dataMax));
 
-            const initGraph = speedData => {
-              fullPoints = speedData
-                .map(d => ({ x: Number(d.x), y: Number(d.y) }))
-                .sort((a, b) => a.x - b.x);
-              if (!fullPoints.length) return;
-              dataMin = fullPoints[0].x;
-              dataMax = fullPoints[fullPoints.length - 1].x;
-              globalStats = computeStats(fullPoints.map(p => p.y));
+            const initGraph = ({ machines, series }) => {
+              machineKeys = Object.keys(series || {}).filter(key => series[key].length);
+              machinesData = {};
+              machineKeys.forEach(key => {
+                const points = series[key]
+                  .map(d => ({ x: Number(d.x), y: Number(d.y) }))
+                  .sort((a, b) => a.x - b.x);
+                machinesData[key] = {
+                  meta: (machines && machines[key]) || {},
+                  points,
+                  stats: computeStats(points.map(p => p.y))
+                };
+              });
+              if (!machineKeys.length) return;
+
+              dataMin = Math.min(...machineKeys.map(key => machinesData[key].points[0].x));
+              dataMax = Math.max(...machineKeys.map(key => {
+                const pts = machinesData[key].points;
+                return pts[pts.length - 1].x;
+              }));
+
               buildChart();
               setRange(dataMin, dataMax);
+              populateMachineSelectors();
               renderLowOutlierTable();
               initDailyStabilityChart();
             };
@@ -654,18 +660,30 @@
               .then(json => initGraph(json));
         </script>
         <script>
+          const lowOutliersMachineSelect = document.getElementById('low-outliers-machine');
           const lowOutliersTableBody = document.querySelector('#low-outliers-table tbody');
           const lowOutliersStats = document.getElementById('low-outliers-stats');
 
+          const populateMachineSelectors = () => {
+            [lowOutliersMachineSelect, dailyMachineSelect].forEach(select => {
+              const previousValue = select.value;
+              select.innerHTML = machineKeys
+                .map(key => `<option value="${key}">${machineLabel(machinesData[key].meta)}</option>`)
+                .join('');
+              select.value = machineKeys.includes(previousValue) ? previousValue : machineKeys[0];
+            });
+          };
+
           const renderLowOutlierTable = () => {
-            if (!globalStats) return;
-            const lowPoints = fullPoints
-              .filter(p => p.y <= globalStats.lowerBound)
+            const machine = machinesData[lowOutliersMachineSelect.value];
+            if (!machine) return;
+            const lowPoints = machine.points
+              .filter(p => p.y <= machine.stats.lowerBound)
               .sort((a, b) => b.x - a.x);
 
             lowOutliersStats.innerHTML =
-              `<span>${lowPoints.length}</span> reading(s) below <span>${Math.max(0, globalStats.lowerBound).toFixed(1)} Mbps</span> ` +
-              `(median: <span>${globalStats.median.toFixed(2)} Mbps</span>)`;
+              `<span>${lowPoints.length}</span> reading(s) below <span>${Math.max(0, machine.stats.lowerBound).toFixed(1)} Mbps</span> ` +
+              `(median: <span>${machine.stats.median.toFixed(2)} Mbps</span>)`;
 
             lowOutliersTableBody.innerHTML = lowPoints.length
               ? lowPoints.map(p => {
@@ -676,9 +694,11 @@
               : '<tr><td colspan="3">No low-speed outliers recorded.</td></tr>';
           };
 
+          const dailyMachineSelect = document.getElementById('daily-machine');
           const dailyDateInput = document.getElementById('daily-date');
           const dailyStats = document.getElementById('daily-stats');
           let dailyChartInstance = null;
+
 
           const dayBounds = dateStr => {
             const [y, m, d] = dateStr.split('-').map(Number);
@@ -743,9 +763,10 @@
           };
 
           const renderDailyChart = () => {
-            if (!dailyDateInput.value) return;
+            const machine = machinesData[dailyMachineSelect.value];
+            if (!machine || !dailyDateInput.value) return;
             const { start, end } = dayBounds(dailyDateInput.value);
-            const dayPoints = fullPoints.filter(p => p.x >= start && p.x <= end).sort((a, b) => a.x - b.x);
+            const dayPoints = machine.points.filter(p => p.x >= start && p.x <= end).sort((a, b) => a.x - b.x);
 
             dailyChartInstance.options.scales.xAxes[0].ticks.min = start;
             dailyChartInstance.options.scales.xAxes[0].ticks.max = end;
@@ -767,11 +788,13 @@
           const initDailyStabilityChart = () => {
             dailyDateInput.min = toDateInputValue(dataMin);
             dailyDateInput.max = toDateInputValue(dataMax);
-            dailyDateInput.value = toDateInputValue(dataMax);
-            buildDailyChart();
+            if (!dailyDateInput.value) dailyDateInput.value = toDateInputValue(dataMax);
+            if (!dailyChartInstance) buildDailyChart();
             renderDailyChart();
           };
 
+          dailyMachineSelect.addEventListener('change', renderDailyChart);
+          lowOutliersMachineSelect.addEventListener('change', renderLowOutlierTable);
           dailyDateInput.addEventListener('change', renderDailyChart);
           document.getElementById('daily-prev').addEventListener('click', () => shiftDailyDate(-1));
           document.getElementById('daily-next').addEventListener('click', () => shiftDailyDate(1));

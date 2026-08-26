@@ -72,6 +72,14 @@ Where the arguments are:
 - Path to the endpoint to save the results.
 - Password for that endpoint.
 
+Each client auto-detects its MAC address, IP, and hostname and sends them along with every
+result so the server can attribute readings to the machine that produced them. Set the
+`CONNECTION_LABEL` environment variable (e.g. `wifi` or `ethernet`) to tag which kind of
+connection that machine is testing — useful when you run the client on more than one machine,
+for example one on Wi-Fi and another wired directly into the modem. The dashboard shows each
+machine as its own series and lets you pick a machine when viewing the low-speed outlier table
+and the daily stability chart.
+
 ### Server
 
 Setup password, and port (default: 3000):
