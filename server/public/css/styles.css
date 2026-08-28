@@ -157,6 +157,33 @@ thead th {
     letter-spacing: 0.5px;
     z-index: 1;
 }
+th[data-sort] {
+    cursor: pointer;
+    user-select: none;
+}
+th[data-sort]:hover { color: var(--text-main); }
+.sort-indicator {
+    display: inline-block;
+    width: 10px;
+    color: var(--accent);
+}
+.filter-row th {
+    top: 29px;
+    padding: 4px 8px;
+}
+.filter-row input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    padding: 4px 6px;
+    color: var(--text-main);
+    font-size: 12px;
+    font-family: inherit;
+    font-weight: normal;
+    text-transform: none;
+    letter-spacing: normal;
+}
 tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
 td.speed-outlier { color: var(--outlier); font-weight: 600; }
 .daily-controls {

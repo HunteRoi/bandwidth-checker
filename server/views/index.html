@@ -34,16 +34,22 @@
 
             <section class="card" id="low-outliers">
                 <h2>Low-Speed Outliers</h2>
-                <div class="daily-controls">
-                    <label>Machine
-                        <select id="low-outliers-machine"></select>
-                    </label>
-                </div>
                 <div id="low-outliers-stats"></div>
                 <div class="table-wrap">
                     <table id="low-outliers-table">
                         <thead>
-                            <tr><th>Date</th><th>Time</th><th>Speed (Mbps)</th></tr>
+                            <tr>
+                                <th data-sort="machine">Machine <span class="sort-indicator"></span></th>
+                                <th data-sort="date">Date <span class="sort-indicator"></span></th>
+                                <th data-sort="time">Time <span class="sort-indicator"></span></th>
+                                <th data-sort="speed">Speed (Mbps) <span class="sort-indicator"></span></th>
+                            </tr>
+                            <tr class="filter-row">
+                                <th><input type="text" data-filter="machine" placeholder="Filter..."></th>
+                                <th><input type="text" data-filter="date" placeholder="Filter..."></th>
+                                <th><input type="text" data-filter="time" placeholder="Filter..."></th>
+                                <th><input type="text" data-filter="speed" placeholder="Filter..."></th>
+                            </tr>
                         </thead>
                         <tbody></tbody>
                     </table>

@@ -1,10 +1,16 @@
-// distinguishable colors so each reporting machine gets its own consistent series color
-const PALETTE = [
-  { bg: 'rgba(56, 189, 248, 0.85)', border: 'rgba(56, 189, 248, 1)' },
-  { bg: 'rgba(251, 90, 140, 0.85)', border: 'rgba(251, 90, 140, 1)' },
-  { bg: 'rgba(250, 204, 21, 0.85)', border: 'rgba(250, 204, 21, 1)' },
-  { bg: 'rgba(52, 211, 153, 0.85)', border: 'rgba(52, 211, 153, 1)' },
-  { bg: 'rgba(167, 139, 250, 0.85)', border: 'rgba(167, 139, 250, 1)' }
+// pink is reserved for outliers everywhere, so machine colors are assigned separately from it
+const OUTLIER_COLOR = { bg: 'rgba(251, 90, 140, 0.9)', border: 'rgba(251, 90, 140, 1)' };
+
+// fixed colors per connection type so wifi vs ethernet is recognizable at a glance across charts
+const CONNECTION_COLORS = {
+  wifi: { bg: 'rgba(56, 189, 248, 0.85)', border: 'rgba(56, 189, 248, 1)' },      // light blue
+  ethernet: { bg: 'rgba(250, 204, 21, 0.85)', border: 'rgba(250, 204, 21, 1)' }  // yellow
+};
+// used for machines whose connection label isn't recognized above
+const FALLBACK_PALETTE = [
+  { bg: 'rgba(52, 211, 153, 0.85)', border: 'rgba(52, 211, 153, 1)' },   // green
+  { bg: 'rgba(167, 139, 250, 0.85)', border: 'rgba(167, 139, 250, 1)' }, // purple
+  { bg: 'rgba(45, 212, 191, 0.85)', border: 'rgba(45, 212, 191, 1)' }    // teal
 ];
 
 const machineLabel = meta => {
@@ -28,7 +34,7 @@ const buildChart = () => {
   const ctx = document.getElementById('myChart').getContext('2d');
   const datasets = [];
   machineKeys.forEach((key, i) => {
-    const colors = PALETTE[i % PALETTE.length];
+    const colors = machinesData[key].color;
     const label = machineLabel(machinesData[key].meta);
     datasets.push({
       label: `${label} — normal`,
@@ -45,8 +51,8 @@ const buildChart = () => {
       label: `${label} — outliers`,
       data: [],
       showLine: false,
-      backgroundColor: 'rgba(251, 90, 140, 0.9)',
-      borderColor: 'rgba(251, 90, 140, 1)',
+      backgroundColor: OUTLIER_COLOR.bg,
+      borderColor: OUTLIER_COLOR.border,
       borderWidth: 1,
       pointRadius: 4,
       machineKey: key,
@@ -137,11 +143,10 @@ const updateChartForRange = (min, max) => {
   machineKeys.forEach(key => {
     const machine = machinesData[key];
     const visible = machine.points.filter(p => p.x >= min && p.x <= max);
-    const isOutlier = v => v < machine.stats.lowerBound || v > machine.stats.upperBound;
     totalVisible += visible.length;
     summaries.push(
       `<div><strong>${machineLabel(machine.meta)}</strong>: median <span>${machine.stats.median.toFixed(2)} Mbps</span> ` +
-      `&nbsp;·&nbsp; outliers <span>${visible.filter(p => isOutlier(p.y)).length}</span> of <span>${visible.length}</span> ` +
+      `&nbsp;·&nbsp; outliers <span>${visible.filter(p => isOutlierValue(machine.stats, p.y)).length}</span> of <span>${visible.length}</span> ` +
       `(outside <span>${Math.max(0, machine.stats.lowerBound).toFixed(1)}</span>–<span>${machine.stats.upperBound.toFixed(1)}</span> Mbps, ` +
       `calculated for this machine only)</div>`
     );
@@ -154,8 +159,7 @@ const updateChartForRange = (min, max) => {
       return;
     }
     const visible = machine.points.filter(p => p.x >= min && p.x <= max);
-    const isOutlier = v => v < machine.stats.lowerBound || v > machine.stats.upperBound;
-    ds.data = ds.kind === 'outlier' ? visible.filter(p => isOutlier(p.y)) : visible.filter(p => !isOutlier(p.y));
+    ds.data = ds.kind === 'outlier' ? visible.filter(p => isOutlierValue(machine.stats, p.y)) : visible.filter(p => !isOutlierValue(machine.stats, p.y));
   });
   chartInstance.update();
 
@@ -177,6 +181,18 @@ const initGraph = ({ machines, series }) => {
   });
   if (!machineKeys.length) return;
 
+  // color by connection type (wifi/ethernet) so the same kind of link always looks the same across charts
+  let fallbackIndex = 0;
+  machineKeys.forEach(key => {
+    const connection = ((machinesData[key].meta && machinesData[key].meta.connection) || '').toLowerCase();
+    if (CONNECTION_COLORS[connection]) {
+      machinesData[key].color = CONNECTION_COLORS[connection];
+    } else {
+      machinesData[key].color = FALLBACK_PALETTE[fallbackIndex % FALLBACK_PALETTE.length];
+      fallbackIndex += 1;
+    }
+  });
+
   dataMin = Math.min(...machineKeys.map(key => machinesData[key].points[0].x));
   dataMax = Math.max(...machineKeys.map(key => {
     const pts = machinesData[key].points;
@@ -185,7 +201,7 @@ const initGraph = ({ machines, series }) => {
 
   buildChart();
   setRange(dataMin, dataMax);
-  populateMachineSelectors();
+  populateDailyMachineSelect();
   renderLowOutlierTable();
   initDailyStabilityChart();
 };

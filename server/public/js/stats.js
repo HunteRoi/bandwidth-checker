@@ -31,3 +31,8 @@ const computeStats = values => {
     upperBound: median + flagDistance
   };
 };
+
+// a point counts as an outlier if it's statistically far from this machine's median in either
+// direction, OR below the fixed low-speed cutoff — the latter guarantees the low-speed cluster
+// is always highlighted even when the statistical lower bound sits close to zero
+const isOutlierValue = (stats, v) => v < Math.max(stats.lowerBound, LOW_SPEED_THRESHOLD_MBPS) || v > stats.upperBound;

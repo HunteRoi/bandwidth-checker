@@ -3,6 +3,14 @@ const dailyDateInput = document.getElementById('daily-date');
 const dailyStats = document.getElementById('daily-stats');
 let dailyChartInstance = null;
 
+const populateDailyMachineSelect = () => {
+  const previousValue = dailyMachineSelect.value;
+  dailyMachineSelect.innerHTML = machineKeys
+    .map(key => `<option value="${key}">${machineLabel(machinesData[key].meta)}</option>`)
+    .join('');
+  dailyMachineSelect.value = machineKeys.includes(previousValue) ? previousValue : machineKeys[0];
+};
+
 const dayBounds = dateStr => {
   const [y, m, d] = dateStr.split('-').map(Number);
   return {
@@ -70,17 +78,18 @@ const renderDailyChart = () => {
   if (!machine || !dailyDateInput.value) return;
   const { start, end } = dayBounds(dailyDateInput.value);
   const dayPoints = machine.points.filter(p => p.x >= start && p.x <= end).sort((a, b) => a.x - b.x);
-  const isOutlier = v => v < machine.stats.lowerBound || v > machine.stats.upperBound;
-  const pointColors = dayPoints.map(p => isOutlier(p.y) ? 'rgba(251, 90, 140, 1)' : 'rgba(56, 189, 248, 1)');
+  const pointColors = dayPoints.map(p => isOutlierValue(machine.stats, p.y) ? OUTLIER_COLOR.border : machine.color.border);
 
   dailyChartInstance.options.scales.xAxes[0].ticks.min = start;
   dailyChartInstance.options.scales.xAxes[0].ticks.max = end;
   dailyChartInstance.data.datasets[0].data = dayPoints;
+  dailyChartInstance.data.datasets[0].borderColor = machine.color.border;
+  dailyChartInstance.data.datasets[0].backgroundColor = machine.color.bg;
   dailyChartInstance.data.datasets[0].pointBackgroundColor = pointColors;
   dailyChartInstance.data.datasets[0].pointBorderColor = pointColors;
   dailyChartInstance.update();
 
-  const outlierCount = dayPoints.filter(p => isOutlier(p.y)).length;
+  const outlierCount = dayPoints.filter(p => isOutlierValue(machine.stats, p.y)).length;
   const dayLabel = new Date(start).toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   dailyStats.innerHTML = dayPoints.length
     ? `<span>${dayPoints.length}</span> reading(s) on <span>${dayLabel}</span> &nbsp;·&nbsp; ` +
@@ -104,7 +113,6 @@ const initDailyStabilityChart = () => {
 };
 
 dailyMachineSelect.addEventListener('change', renderDailyChart);
-lowOutliersMachineSelect.addEventListener('change', renderLowOutlierTable);
 dailyDateInput.addEventListener('change', renderDailyChart);
 document.getElementById('daily-prev').addEventListener('click', () => shiftDailyDate(-1));
 document.getElementById('daily-next').addEventListener('click', () => shiftDailyDate(1));
