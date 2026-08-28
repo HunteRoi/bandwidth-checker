@@ -1,9 +1,10 @@
+import json
 import os
 import socket
+import subprocess
 import sys
 import uuid
 from pathlib import Path
-import speedtest
 import time
 import requests
 
@@ -62,13 +63,15 @@ def get_machine_meta():
 
 def get_speed():
     """
-    Use Speedtest CLI to test bandwidth speed.
+    Use the official Ookla Speedtest CLI to test bandwidth speed.
         :return: Download speed in Mbps
     """
-    s = speedtest.Speedtest()
-    s.download()
-    results_dict = s.results.dict()
-    return results_dict['download'] / 1048576  # convert bits to megabits
+    result = subprocess.run(
+        ['speedtest', '--accept-license', '--accept-gdpr', '--format=json'],
+        capture_output=True, text=True, check=True,
+    )
+    data = json.loads(result.stdout)
+    return data['download']['bandwidth'] * 8 / 1_000_000  # bandwidth is bytes/sec
 
 
 def send_speed(url, data, pw):
