@@ -41,6 +41,15 @@ const buildDailyChart = () => {
         pointRadius: 3,
         lineTension: 0,
         fill: false
+      }, {
+        label: 'Median',
+        data: [],
+        showLine: true,
+        borderColor: 'rgba(56, 189, 248, 1)',
+        borderWidth: 2,
+        borderDash: [8, 5],
+        pointRadius: 0,
+        fill: false
       }]
     },
     options: {
@@ -66,7 +75,9 @@ const buildDailyChart = () => {
       },
       tooltips: {
         callbacks: {
-          label: tooltipItem => `${tooltipItem.value} Mbps @ ${new Date(Number(tooltipItem.label)).toLocaleTimeString()}`
+          label: tooltipItem => Number(tooltipItem.datasetIndex) === 1
+            ? `Median: ${tooltipItem.value} Mbps`
+            : `${tooltipItem.value} Mbps @ ${new Date(Number(tooltipItem.label)).toLocaleTimeString()}`
         }
       }
     }
@@ -87,12 +98,15 @@ const renderDailyChart = () => {
   dailyChartInstance.data.datasets[0].backgroundColor = machine.color.bg;
   dailyChartInstance.data.datasets[0].pointBackgroundColor = pointColors;
   dailyChartInstance.data.datasets[0].pointBorderColor = pointColors;
+  dailyChartInstance.data.datasets[1].data = [{ x: start, y: machine.stats.median }, { x: end, y: machine.stats.median }];
+  dailyChartInstance.data.datasets[1].borderColor = machine.color.border;
   dailyChartInstance.update();
 
   const outlierCount = dayPoints.filter(p => isOutlierValue(machine.stats, p.y)).length;
   const dayLabel = new Date(start).toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   dailyStats.innerHTML = dayPoints.length
     ? `<span>${dayPoints.length}</span> reading(s) on <span>${dayLabel}</span> &nbsp;·&nbsp; ` +
+      `median <span>${machine.stats.median.toFixed(2)} Mbps</span> (dashed line) &nbsp;·&nbsp; ` +
       `<span>${outlierCount}</span> outlier(s) shown in pink ` +
       `(outside <span>${Math.max(0, machine.stats.lowerBound).toFixed(1)}</span>–<span>${machine.stats.upperBound.toFixed(1)}</span> Mbps for this machine)`
     : `No readings on <span>${dayLabel}</span>`;
